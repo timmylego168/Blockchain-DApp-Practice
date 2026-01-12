@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>捐款合約管理台</title>
+
+  <!-- ethers.js v5 (UMD) -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer">
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Microsoft JhengHei", sans-serif;
+      background: #0b0f14;
+      color: #e8eef7;
+    }
+    .wrap {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .panel {
+      max-width: 720px;
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+    h1 {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+    .info {
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 16px;
+      color: #cfd8e3;
+    }
+    .mono {
+      font-family: ui-monospace, Consolas, monospace;
+      word-break: break-all;
+    }
+    button {
+      padding: 12px 16px;
+      margin: 6px 6px 6px 0;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(120,180,255,0.18);
+      color: #e8eef7;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .box {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.12);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .warn {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(255,71,87,0.15);
+      border: 1px solid rgba(255,71,87,0.35);
+      color: #ffd6da;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>捐款合約管理台</h1>
+
+      <div class="info">
+        本頁為<strong>管理員介面</strong>，透過 MetaMask 連線 Sepolia 測試鏈，  
+        用於查詢合約金流狀態與執行管理員提領。
+      </div>
+
+      <div class="box">
+        <div><b>合約地址：</b></div>
+        <div class="mono" id="contractAddr"></div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <button id="btnWithdraw" disabled>管理員提領</button>
+        <button id="btnOwnerBalance">管理員餘額</button>
+        <button id="btnContractBalance">合約入帳總額</button>
+      </div>
+
+      <div class="box">
+        <div><b>查詢結果：</b></div>
+        <span id="output">尚未操作</span>
+      </div>
+
+      <div class="warn">
+        ⚠️ 僅當目前連線帳號為合約 owner 時，才可執行「管理員提領」。
+      </div>
+    </div>
+  </div>
+
+<script>
+  // =============================
+  // 基本設定
+  // =============================
+  const contractAddress = "0xdC22895A9aB11c5ab5fe00510a814De28E272cb2";
+
+  const abi = [
+    {"inputs":[],"stateMutability":"nonpayable","type":"constructor"},
+    {"inputs":[],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"},
+    {"stateMutability":"payable","type":"receive"},
+    {"inputs":[],"name":"getContractBalance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+    {"inputs":[],"name":"getOwnerBalance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+    {"inputs":[],"name":"owner","outputs":[{"internalType":"address payable","name":"","type":"address"}],"stateMutability":"view","type":"function"}
+  ];
+
+  let provider;
+  let signer;
+  let contract;
+  let currentAccount;
+  let ownerAddress;
+
+  document.getElementById("contractAddr").innerText = contractAddress;
+
+  // =============================
+  // 初始化（照你給的 code 架構）
+  // =============================
+  async function init() {
+    if (!window.ethereum) {
+      alert("請先安裝 MetaMask");
+      return;
+    }
+
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+
+    await provider.send("eth_requestAccounts", []);
+    signer = provider.getSigner();
+    currentAccount = await signer.getAddress();
+
+    const network = await provider.getNetwork();
+    if (network.chainId !== 11155111) {
+      alert("請切換至 Sepolia 測試鏈");
+      return;
+    }
+
+    contract = new ethers.Contract(contractAddress, abi, signer);
+
+    ownerAddress = await contract.owner();
+
+    // 只有 owner 才能提領
+    if (currentAccount.toLowerCase() === ownerAddress.toLowerCase()) {
+      document.getElementById("btnWithdraw").disabled = false;
+    }
+
+    console.log("目前帳號:", currentAccount);
+    console.log("合約 owner:", ownerAddress);
+  }
+
+  init();
+
+  // =============================
+  // 事件綁定
+  // =============================
+  document.getElementById("btnWithdraw").onclick = withdraw;
+  document.getElementById("btnOwnerBalance").onclick = getOwnerBalance;
+  document.getElementById("btnContractBalance").onclick = getContractBalance;
+
+  // =============================
+  // 功能實作
+  // =============================
+  async function withdraw() {
+    try {
+      document.getElementById("output").innerText = "送出提領交易中…";
+      const tx = await contract.withdraw();
+      await tx.wait();
+      document.getElementById("output").innerText = "✅ 提領完成";
+    } catch (e) {
+      console.error(e);
+      document.getElementById("output").innerText = "❌ 提領失敗或被使用者取消";
+    }
+  }
+
+  async function getOwnerBalance() {
+    try {
+      const bal = await contract.getOwnerBalance();
+      const eth = ethers.utils.formatEther(bal);
+      document.getElementById("output").innerText =
+        `管理員餘額：${eth} ETH`;
+    } catch (e) {
+      console.error(e);
+      document.getElementById("output").innerText = "讀取管理員餘額失敗";
+    }
+  }
+
+  async function getContractBalance() {
+    try {
+      const bal = await contract.getContractBalance();
+      const eth = ethers.utils.formatEther(bal);
+      document.getElementById("output").innerText =
+        `合約入帳總額：${eth} ETH`;
+    } catch (e) {
+      console.error(e);
+      document.getElementById("output").innerText = "讀取合約入帳總額失敗";
+    }
+  }
+</script>
+</body>
+</html>

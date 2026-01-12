@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Ethers.js 智能合約操作示範</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"
+        crossorigin="anonymous" referrerpolicy="no-referrer">
+    </script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+        }
+        #result {
+            margin-top: 20px;
+            color: blue;
+            white-space: pre-wrap;
+        }
+        #error {
+            margin-top: 20px;
+            color: red;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+<h2>Counter 智能合約操作（ethers.js）</h2>
+
+<button onclick="inc()">Inc</button>
+<button onclick="dec()">Dec</button>
+<button onclick="getCount()">Get</button>
+<button onclick="mpy()">mpy</button>
+<button onclick="getMpyResult()">getMpyResuit</button>
+
+<div id="result"></div>
+<div id="error"></div>
+
+<script>
+    // 智能合約地址 (使用您提供的地址)
+    const contractAddress = "0x87db03482a7468160D79B088B1A2945aCEf21540";
+
+    // ABI (包含您新增的 mpy 與 resuit)
+    const abi = [
+        {
+            "inputs": [],
+            "name": "dec",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "inc",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                { "internalType": "uint256", "name": "a", "type": "uint256" },
+                { "internalType": "uint256", "name": "b", "type": "uint256" }
+            ],
+            "name": "mpy",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "count",
+            "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "get",
+            "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "resuit",
+            "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ];
+
+    let provider;
+    let signer;
+    let contract;
+
+    // 初始化連線
+    async function init() {
+        if (!window.ethereum) {
+            alert("請先安裝 MetaMask");
+            return;
+        }
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = provider.getSigner();
+        contract = new ethers.Contract(contractAddress, abi, signer);
+    }
+
+    init();
+
+    // ----------------------------
+    // 1. Inc（交易）
+    // ----------------------------
+    async function inc() {
+        clearMessage();
+        try {
+            const tx = await contract.inc();
+            showResult("交易已送出，等待確認...");
+            await tx.wait(); 
+            showResult("已成功執行 inc() 交易");
+        } catch (err) {
+            showError(err);
+        }
+    }
+
+    // ----------------------------
+    // 2. Dec（交易）
+    // ----------------------------
+    async function dec() {
+        clearMessage();
+        try {
+            const tx = await contract.dec();
+            showResult("交易已送出，等待確認...");
+            await tx.wait();
+            showResult("已成功執行 dec() 交易");
+        } catch (err) {
+            showError(err);
+        }
+    }
+
+    // ----------------------------
+    // 3. Get（查詢）
+    // ----------------------------
+    async function getCount() {
+        clearMessage();
+        try {
+            const value = await contract.get();
+            showResult("目前 count 值為：" + value.toString());
+        } catch (err) {
+            showError(err);
+        }
+    }
+
+    // ----------------------------
+    // 4. Mpy（發起交易，計算 a * b）
+    // ----------------------------
+    async function mpy() {
+        clearMessage();
+        try {
+            const a = prompt("請輸入乘數 a:");
+            const b = prompt("請輸入被乘數 b:");
+            if (a === null || b === null || a === "" || b === "") return;
+
+            const tx = await contract.mpy(a, b);
+            showResult("交易已送出，MetaMask 確認中...");
+            await tx.wait(); // 等待區塊鏈確認
+            showResult(`mpy 運算完成！請點擊 getMpyResuit 查看結果。`);
+        } catch (err) {
+            showError(err);
+        }
+    }
+
+    // ----------------------------
+    // 5. Get Mpy Result（查詢 resuit 變數）
+    // ----------------------------
+    async function getMpyResult() {
+        clearMessage();
+        try {
+            // 讀取合約中的 public 變數 resuit
+            const value = await contract.resuit();
+            showResult("目前 resuit 的運算結果為：" + value.toString());
+        } catch (err) {
+            showError(err);
+        }
+    }
+
+    // ----------------------------
+    // 顯示處理工具
+    // ----------------------------
+    function showResult(msg) {
+        document.getElementById("result").innerText = msg;
+    }
+
+    function showError(err) {
+        console.error(err);
+        document.getElementById("error").innerText =
+            err.reason || err.message || JSON.stringify(err, null, 2);
+    }
+
+    function clearMessage() {
+        document.getElementById("result").innerText = "";
+        document.getElementById("error").innerText = "";
+    }
+</script>
+</body>
+</html>

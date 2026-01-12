@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>Event Listening - 考題三實作</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" crossorigin="anonymous"></script>
+  <style>
+    body { margin:0; font-family: sans-serif; background:#0b0f14; color:#e8eef7; }
+    .wrap { min-height:100vh; display:grid; place-items:center; padding:24px; }
+    .card { width:min(860px, 95vw); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14); border-radius:16px; padding:22px; }
+    .mono { font-family: monospace; word-break:break-all; color: #78b4ff; }
+    button { padding:12px 16px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); background:rgba(120,180,255,0.18); color:#e8eef7; cursor:pointer; }
+    .box { margin-top:14px; padding:12px 14px; border-radius:12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.12); font-size:14px; }
+    .log { margin-top:10px; max-height:260px; overflow:auto; padding:10px; background:rgba(255,255,255,0.03); border-radius:10px; }
+    .item { padding:8px; border-bottom: 1px dashed rgba(255,255,255,0.1); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>🔔 事件監聽管理台 (考題三)</h1>
+      <div class="box">
+        <div><b>合約地址</b>：<span class="mono" id="addr">尚未填寫</span></div>
+        <div><b>狀態</b>：<span id="status">尚未連線</span></div>
+      </div>
+      <div style="margin-top:14px;">
+        <button id="btnDeposit">發送 0.001 ETH 觸發事件</button>
+      </div>
+      <div class="box">
+        <div><b>即時事件日誌 (Event Log)</b>：</div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // 1. 修改處：請換成您部署後的合約地址
+  const contractAddress = "0x217F4a5f774A4cbEcEf2609d10ecC6852887aDD5"; 
+
+  // 2. 修改處：更新 ABI 以匹配 Received 事件
+  const abi = [
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true, "internalType": "address", "name": "_from", "type": "address" },
+        { "indexed": false, "internalType": "uint256", "name": "_value", "type": "uint256" }
+      ],
+      "name": "Received",
+      "type": "event"
+    }
+  ];
+
+  let provider, signer, contract;
+
+  document.getElementById("addr").textContent = contractAddress;
+
+  function addLog(text, isEvent = false) {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.style.color = isEvent ? "#10ac84" : "#e8eef7";
+    div.innerHTML = `[${new Date().toLocaleTimeString()}] ${text}`;
+    document.getElementById("log").prepend(div);
+  }
+
+  async function init() {
+    if (!window.ethereum) return alert("請安裝 MetaMask");
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = provider.getSigner();
+    contract = new ethers.Contract(contractAddress, abi, signer);
+
+    const account = await signer.getAddress();
+    document.getElementById("status").textContent = `已連線：${account}`;
+
+    // 3. 修改處：監聽 Received 事件
+    contract.on("Received", (from, value, event) => {
+      const eth = ethers.utils.formatEther(value);
+      addLog(`✨ <b>偵測到事件！</b> 來自：${from} | 金額：${eth} ETH`, true);
+    });
+
+    addLog("系統：監聽器已啟動，等待事件中...");
+  }
+
+  // 4. 修改處：按鈕邏輯改為直接發送 ETH 以觸發 receive()
+  document.getElementById("btnDeposit").onclick = async () => {
+    try {
+      addLog("正在發起轉帳以觸發事件...");
+      const tx = await signer.sendTransaction({
+        to: contractAddress,
+        value: ethers.utils.parseEther("0.001")
+      });
+      addLog(`交易已送出，Hash: ${tx.hash.substring(0, 16)}...`);
+      await tx.wait();
+      addLog("⛏️ 交易已上鏈確認。");
+    } catch (e) {
+      addLog("❌ 交易失敗");
+    }
+  };
+
+  init();
+</script>
+</body>
+</html>
